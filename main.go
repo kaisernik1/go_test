@@ -41,10 +41,10 @@ func main() {
 
         loadAvg, memoryTotal, memoryUsed, diskTotal, diskUsed, networkBandwidth, networkUsage := parseStats(stats)
 
-        checkLoadAverage(int(loadAvg))
+        checkLoadAverage(loadAvg)
         checkMemoryUsage(memoryTotal, memoryUsed)
         checkFreeDiskSpace(diskTotal, diskUsed)
-        checkNetworkBandwidth(int(networkBandwidth), int(networkUsage))
+        checkNetworkBandwidth(networkBandwidth, networkUsage)
 
         time.Sleep(pollInterval)
     }
@@ -69,7 +69,7 @@ func getServerStats() ([]byte, error) {
     return body, nil
 }
 
-func parseStats(data []byte) (float64, int64, int64, int64, int64, float64, float64) {
+func parseStats(data []byte) (int, int, int, int, int, int, int) {
     reader := csv.NewReader(bytes.NewReader(data))
     fields, err := reader.Read()
     if err != nil {
@@ -77,16 +77,16 @@ func parseStats(data []byte) (float64, int64, int64, int64, int64, float64, floa
     }
 
     loadAvgStr := strings.Trim(fields[0], ",")
-    loadAvg, _ := strconv.ParseFloat(loadAvgStr, 64)
+    loadAvg, _ := strconv.Atoi(loadAvgStr)
 
-    memoryTotal, _ := strconv.ParseInt(fields[1], 10, 64)
-    memoryUsed, _ := strconv.ParseInt(fields[2], 10, 64)
+    memoryTotal, _ := strconv.Atoi(fields[1])
+    memoryUsed, _ := strconv.Atoi(fields[2])
 
-    diskTotal, _ := strconv.ParseInt(fields[3], 10, 64)
-    diskUsed, _ := strconv.ParseInt(fields[4], 10, 64)
+    diskTotal, _ := strconv.Atoi(fields[3])
+    diskUsed, _ := strconv.Atoi(fields[4])
 
-    networkBandwidth, _ := strconv.ParseFloat(fields[5], 64)
-    networkUsage, _ := strconv.ParseFloat(fields[6], 64)
+    networkBandwidth, _ := strconv.Atoi(fields[5])
+    networkUsage, _ := strconv.Atoi(fields[6])
 
     return loadAvg, memoryTotal, memoryUsed, diskTotal, diskUsed, networkBandwidth, networkUsage
 }
@@ -97,14 +97,14 @@ func checkLoadAverage(loadAvg int) {
     }
 }
 
-func checkMemoryUsage(memoryTotal, memoryUsed int64) {
-    usagePercent := int(math.Round(float64(memoryUsed)/float64(memoryTotal) * 100))
+func checkMemoryUsage(memoryTotal, memoryUsed int) {
+    usagePercent := int(math.Round(float64(memoryUsed) / float64(memoryTotal) * 100))
     if usagePercent > memoryUsageThreshold {
         fmt.Printf("Memory usage too high: %d%%\n", usagePercent)
     }
 }
 
-func checkFreeDiskSpace(diskTotal, diskUsed int64) {
+func checkFreeDiskSpace(diskTotal, diskUsed int) {
     freeSpace := int(math.Round(float64(diskTotal-diskUsed) / 1024 / 1024))
     if freeSpace < freeDiskSpaceThreshold {
         fmt.Printf("Free disk space is too low: %d Mb left\n", freeSpace)
