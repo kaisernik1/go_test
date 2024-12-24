@@ -69,7 +69,7 @@ func getServerStats() ([]byte, error) {
     return body, nil
 }
 
-func parseStats(data []byte) (int, int, int, int, int, int, int) {
+func parseStats(data []byte) (int, int64, int64, int64, int64, float64, float64) {
     reader := csv.NewReader(bytes.NewReader(data))
     fields, err := reader.Read()
     if err != nil {
@@ -86,34 +86,34 @@ func parseStats(data []byte) (int, int, int, int, int, int, int) {
         log.Fatalf("Failed to convert Load Average to integer: %v", err)
     }
 
-    memoryTotal, err := strconv.Atoi(fields[1])
+    memoryTotal, err := strconv.ParseInt(fields[1], 10, 64)
     if err != nil {
         log.Fatalf("Failed to convert Memory Total to integer: %v", err)
     }
 
-    memoryUsed, err := strconv.Atoi(fields[2])
+    memoryUsed, err := strconv.ParseInt(fields[2], 10, 64)
     if err != nil {
         log.Fatalf("Failed to convert Memory Used to integer: %v", err)
     }
 
-    diskTotal, err := strconv.Atoi(fields[3])
+    diskTotal, err := strconv.ParseInt(fields[3], 10, 64)
     if err != nil {
         log.Fatalf("Failed to convert Disk Total to integer: %v", err)
     }
 
-    diskUsed, err := strconv.Atoi(fields[4])
+    diskUsed, err := strconv.ParseInt(fields[4], 10, 64)
     if err != nil {
         log.Fatalf("Failed to convert Disk Used to integer: %v", err)
     }
 
-    networkBandwidth, err := strconv.Atoi(fields[5])
+    networkBandwidth, err := strconv.ParseFloat(fields[5], 64)
     if err != nil {
-        log.Fatalf("Failed to convert Network Bandwidth to integer: %v", err)
+        log.Fatalf("Failed to convert Network Bandwidth to float64: %v", err)
     }
 
-    networkUsage, err := strconv.Atoi(fields[6])
+    networkUsage, err := strconv.ParseFloat(fields[6], 64)
     if err != nil {
-        log.Fatalf("Failed to convert Network Usage to integer: %v", err)
+        log.Fatalf("Failed to convert Network Usage to float64: %v", err)
     }
 
     return loadAvg, memoryTotal, memoryUsed, diskTotal, diskUsed, networkBandwidth, networkUsage
@@ -125,7 +125,7 @@ func checkLoadAverage(loadAvg int) {
     }
 }
 
-func checkMemoryUsage(memoryTotal, memoryUsed int) {
+func checkMemoryUsage(memoryTotal, memoryUsed int64) {
     if memoryTotal == 0 {
         log.Fatalf("Memory Total cannot be zero")
     }
@@ -136,24 +136,24 @@ func checkMemoryUsage(memoryTotal, memoryUsed int) {
     }
 }
 
-func checkFreeDiskSpace(diskTotal, diskUsed int) {
-    freeSpace := int(math.Round(float64(diskTotal-diskUsed) / 1024 / 1024))
+func checkFreeDiskSpace(diskTotal, diskUsed int64) {
+    freeSpace := int64((diskTotal - diskUsed) >> 20) // Переводим байты в мегабайты
     if freeSpace < freeDiskSpaceThreshold {
-        fmt.Printf("Free disk space is too low: %d Mb left\n", freeSpace)
+        fmt.Printf("Free disk space is too low: %d MB left\n", freeSpace)
     }
 }
 
 // Обновленная функция для перевода значений в мегабиты
-func checkNetworkBandwidth(bandwidth, usage int) {
+func checkNetworkBandwidth(bandwidth, usage float64) {
     if bandwidth == 0 {
         log.Fatalf("Network Bandwidth cannot be zero")
     }
 
-    bandwidthMbps := bandwidth / 125000 // Переводим из байт в мегабиты
-    usageMbps := usage / 125000         // Переводим из байт в мегабиты
+    bandwidthMbps := bandwidth / 1e6 // Переводим байты в мегабиты
+    usageMbps := usage / 1e6       // Переводим байты в мегабиты
 
-    usagePercent := int(math.Round(float64(usageMbps) / float64(bandwidthMbps) * 100))
+    usagePercent := int(math.Round(usageMbps / bandwidthMbps * 100))
     if usagePercent > networkBandwidthThresh {
-        fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", bandwidthMbps)
+        fmt.Printf("Network bandwidth usage high: %.2f Mbit/s available\n", bandwidthMbps)
     }
 }
