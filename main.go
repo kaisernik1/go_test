@@ -4,19 +4,20 @@ import (
     "bytes"
     "encoding/csv"
     "fmt"
-    "log"
-    "net/http"
     "io"
+    "log"
+    "math"
+    "net/http"
     "strconv"
     "strings"
     "time"
 )
 
 const (
-    loadAverageThreshold   = 30.0
-    memoryUsageThreshold   = 80.0
-    freeDiskSpaceThreshold = 10.0
-    networkBandwidthThresh = 90.0
+    loadAverageThreshold   = 30
+    memoryUsageThreshold   = 80
+    freeDiskSpaceThreshold = 10
+    networkBandwidthThresh = 90
     maxErrors              = 3
     pollInterval           = time.Second * 60
     serverURL              = "http://srv.msk01.gigacorp.local/_stats"
@@ -40,10 +41,10 @@ func main() {
 
         loadAvg, memoryTotal, memoryUsed, diskTotal, diskUsed, networkBandwidth, networkUsage := parseStats(stats)
 
-        checkLoadAverage(loadAvg)
+        checkLoadAverage(int(loadAvg))
         checkMemoryUsage(memoryTotal, memoryUsed)
         checkFreeDiskSpace(diskTotal, diskUsed)
-        checkNetworkBandwidth(networkBandwidth, networkUsage)
+        checkNetworkBandwidth(int(networkBandwidth), int(networkUsage))
 
         time.Sleep(pollInterval)
     }
@@ -90,29 +91,44 @@ func parseStats(data []byte) (float64, int64, int64, int64, int64, float64, floa
     return loadAvg, memoryTotal, memoryUsed, diskTotal, diskUsed, networkBandwidth, networkUsage
 }
 
-func checkLoadAverage(loadAvg float64) {
+func checkLoadAverage(loadAvg int) {
     if loadAvg > loadAverageThreshold {
-        fmt.Printf("Load Average is too high: %.2f\n", loadAvg)
+        fmt.Printf("Load Average is too high: %d\n", loadAvg)
     }
 }
 
 func checkMemoryUsage(memoryTotal, memoryUsed int64) {
-    usagePercent := float64(memoryUsed) / float64(memoryTotal) * 100
+    usagePercent := int(math.Round(float64(memoryUsed) / float64(memoryTotal) * 100))
     if usagePercent > memoryUsageThreshold {
-        fmt.Printf("Memory usage too high: %.2f%%\n", usagePercent)
+        fmt.Printf("Memory usage too high: %d%%\n", usagePercent)
     }
+
+    // Преобразуем байты в мегабайты
+    memoryTotalMB := int(math.Round(float64(memoryTotal) / 1024 / 1024))
+    memoryUsedMB := int(math.Round(float64(memoryUsed) / 1024 / 1024))
+    fmt.Printf("Memory Total: %d MB, Used: %d MB\n", memoryTotalMB, memoryUsedMB)
 }
 
 func checkFreeDiskSpace(diskTotal, diskUsed int64) {
-    freeSpace := float64(diskTotal-diskUsed) / 1024 / 1024
+    freeSpace := int(math.Round(float64(diskTotal-diskUsed) / 1024 / 1024))
     if freeSpace < freeDiskSpaceThreshold {
-        fmt.Printf("Free disk space is too low: %.2f MB left\n", freeSpace)
+        fmt.Printf("Free disk space is too low: %d MB left\n", freeSpace)
     }
+
+    // Преобразуем байты в мегабайты
+    diskTotalMB := int(math.Round(float64(diskTotal) / 1024 / 1024))
+    diskUsedMB := int(math.Round(float64(diskUsed) / 1024 / 1024))
+    fmt.Printf("Disk Total: %d MB, Used: %d MB\n", diskTotalMB, diskUsedMB)
 }
 
-func checkNetworkBandwidth(bandwidth, usage float64) {
-    usagePercent := usage / bandwidth * 100
+func checkNetworkBandwidth(bandwidth, usage int) {
+    usagePercent := int(math.Round(float64(usage) / float64(bandwidth) * 100))
     if usagePercent > networkBandwidthThresh {
-        fmt.Printf("Network bandwidth usage high: %.2f Mbit/s available\n", bandwidth*0.1)
+        fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", bandwidth/8)
     }
+
+    // Преобразуем байты в мегабиты
+    bandwidthMbps := bandwidth / 8
+    usageMbps := usage / 8
+    fmt.Printf("Network Bandwidth: %d Mbit/s, Usage: %d Mbit/s\n", bandwidthMbps, usageMbps)
 }
