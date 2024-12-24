@@ -1,10 +1,10 @@
 package main
 
 import (
-	"context"
+	"bytes"
 	"encoding/csv"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -12,100 +12,107 @@ import (
 	"time"
 )
 
+const (
+	loadAverageThreshold   = 30.0
+	memoryUsageThreshold   = 80.0
+	freeDiskSpaceThreshold = 10.0
+	networkBandwidthThresh = 90.0
+	maxErrors              = 3
+	pollInterval           = time.Second * 60
+	serverURL              = "http://srv.msk01.gigacorp.local/_stats"
+)
+
 func main() {
-	const maxErrors = 3
 	errorCount := 0
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	url := "http://srv.msk01.gigacorp.local/_stats"
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		log.Fatalf("Error creating request: %v\n", err)
-	}
-
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
 	for {
-		resp, err := client.Do(req)
+		stats, err := getServerStats()
 		if err != nil {
-			log.Fatalf("Error sending request: %v\n", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
+			log.Println("Error fetching stats:", err)
 			errorCount++
 			if errorCount >= maxErrors {
-				log.Fatal("Unable to fetch server statistics.")
+				fmt.Println("Unable to fetch server statistics.")
+				return
 			}
+			time.Sleep(pollInterval)
 			continue
 		}
+		errorCount = 0
 
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Fatalf("Error reading body: %v\n", err)
-		}
+		loadAvg, memoryTotal, memoryUsed, diskTotal, diskUsed, networkBandwidth, networkUsage := parseStats(stats)
 
-		values, err := parseCSV(string(body))
-		if err != nil {
-			log.Fatalf("Error parsing CSV: %v\n", err)
-		}
+		checkLoadAverage(loadAvg)
+		checkMemoryUsage(memoryTotal, memoryUsed)
+		checkFreeDiskSpace(diskTotal, diskUsed)
+		checkNetworkBandwidth(networkBandwidth, networkUsage)
 
-		processValues(values)
-		break
+		time.Sleep(pollInterval)
 	}
 }
 
-func parseCSV(data string) ([]int64, error) {
-	reader := csv.NewReader(strings.NewReader(data))
-	record, err := reader.Read()
+func getServerStats() ([]byte, error) {
+	resp, err := http.Get(serverURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to make HTTP request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	var values []int64
-	for _, field := range record {
-		value, err := strconv.ParseInt(field, 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		values = append(values, value)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	return values, nil
+	return body, nil
 }
 
-func processValues(values []int64) {
-	loadAverage := float64(values[0])
-	memTotalBytes := int64(values[1])
-	memUsedBytes := int64(values[2])
-	diskTotalBytes := int64(values[3])
-	diskUsedBytes := int64(values[4])
-	netBandwidthBps := int64(values[5])
-	netUsageBps := int64(values[6])
-
-	if loadAverage > 30 {
-		fmt.Printf("Load Average is too high: %.2f\n", loadAverage)
+func parseStats(data []byte) (float64, int64, int64, int64, int64, float64, float64) {
+	reader := csv.NewReader(bytes.NewReader(data))
+	fields, err := reader.Read()
+	if err != nil {
+		log.Fatalf("Failed to parse CSV data: %v", err)
 	}
 
-	memUsagePercent := float64(memUsedBytes) / float64(memTotalBytes) * 100
-	if memUsagePercent > 80 {
-		fmt.Printf("Memory usage too high: %.2f%%\n", memUsagePercent)
-	}
+	loadAvgStr := strings.Trim(fields[0], ",")
+	loadAvg, _ := strconv.ParseFloat(loadAvgStr, 64)
 
-	diskUsagePercent := float64(diskUsedBytes) / float64(diskTotalBytes) * 100
-	if diskUsagePercent > 90 {
-		freeMbLeft := float64((diskTotalBytes - diskUsedBytes)) / 1048576
-		fmt.Printf("Free disk space is too low: %.2f Mb left\n", freeMbLeft)
-	}
+	memoryTotal, _ := strconv.ParseInt(fields[1], 10, 64)
+	memoryUsed, _ := strconv.ParseInt(fields[2], 10, 64)
 
-	netUsagePercent := float64(netUsageBps) / float64(netBandwidthBps) * 100
-	if netUsagePercent > 90 {
-		freeMbitsPerSec := float64((netBandwidthBps - netUsageBps) / 125000)
-		fmt.Printf("Network bandwidth usage high: %.2f Mbit/s available\n", freeMbitsPerSec)
+	diskTotal, _ := strconv.ParseInt(fields[3], 10, 64)
+	diskUsed, _ := strconv.ParseInt(fields[4], 10, 64)
+
+	networkBandwidth, _ := strconv.ParseFloat(fields[5], 64)
+	networkUsage, _ := strconv.ParseFloat(fields[6], 64)
+
+	return loadAvg, memoryTotal, memoryUsed, diskTotal, diskUsed, networkBandwidth, networkUsage
+}
+
+func checkLoadAverage(loadAvg float64) {
+	if loadAvg > loadAverageThreshold {
+		fmt.Printf("Load Average is too high: %.2f\n", loadAvg)
+	}
+}
+
+func checkMemoryUsage(memoryTotal, memoryUsed int64) {
+	usagePercent := float64(memoryUsed) / float64(memoryTotal) * 100
+	if usagePercent > memoryUsageThreshold {
+		fmt.Printf("Memory usage too high: %.2f%%\n", usagePercent)
+	}
+}
+
+func checkFreeDiskSpace(diskTotal, diskUsed int64) {
+	freeSpace := float64(diskTotal-diskUsed) / 1024 / 1024
+	if freeSpace < freeDiskSpaceThreshold {
+		fmt.Printf("Free disk space is too low: %.2f MB left\n", freeSpace)
+	}
+}
+
+func checkNetworkBandwidth(bandwidth, usage float64) {
+	usagePercent := usage / bandwidth * 100
+	if usagePercent > networkBandwidthThresh {
+		fmt.Printf("Network bandwidth usage high: %.2f Mbit/s available\n", bandwidth*0.1)
 	}
 }
