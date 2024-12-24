@@ -19,7 +19,7 @@ const (
     freeDiskSpaceThreshold = 10
     networkBandwidthThresh = 90
     maxErrors              = 3
-    pollInterval           = time.Second * 60
+    pollInterval           = time.Second * 10
     serverURL              = "http://srv.msk01.gigacorp.local/_stats"
 )
 
