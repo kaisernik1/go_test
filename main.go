@@ -1,5 +1,4 @@
 package main
-
 import (
     "bytes"
     "encoding/csv"
@@ -12,7 +11,6 @@ import (
     "strings"
     "time"
 )
-
 const (
     loadAverageThreshold   = 30
     memoryUsageThreshold   = 80
@@ -22,7 +20,6 @@ const (
     pollInterval           = time.Second * 5
     serverURL              = "http://srv.msk01.gigacorp.local/_stats"
 )
-
 func main() {
     errorCount := 0
     for {
@@ -69,7 +66,7 @@ func getServerStats() ([]byte, error) {
     return body, nil
 }
 
-func parseStats(data []byte) (int, int64, int64, int64, int64, float64, float64) {
+func parseStats(data []byte) (int, int, int, int, int, int, int) {
     reader := csv.NewReader(bytes.NewReader(data))
     fields, err := reader.Read()
     if err != nil {
@@ -86,34 +83,34 @@ func parseStats(data []byte) (int, int64, int64, int64, int64, float64, float64)
         log.Fatalf("Failed to convert Load Average to integer: %v", err)
     }
 
-    memoryTotal, err := strconv.ParseInt(fields[1], 10, 64)
+    memoryTotal, err := strconv.Atoi(fields[1])
     if err != nil {
         log.Fatalf("Failed to convert Memory Total to integer: %v", err)
     }
 
-    memoryUsed, err := strconv.ParseInt(fields[2], 10, 64)
+    memoryUsed, err := strconv.Atoi(fields[2])
     if err != nil {
         log.Fatalf("Failed to convert Memory Used to integer: %v", err)
     }
 
-    diskTotal, err := strconv.ParseInt(fields[3], 10, 64)
+    diskTotal, err := strconv.Atoi(fields[3])
     if err != nil {
         log.Fatalf("Failed to convert Disk Total to integer: %v", err)
     }
 
-    diskUsed, err := strconv.ParseInt(fields[4], 10, 64)
+    diskUsed, err := strconv.Atoi(fields[4])
     if err != nil {
         log.Fatalf("Failed to convert Disk Used to integer: %v", err)
     }
 
-    networkBandwidth, err := strconv.ParseFloat(fields[5], 64)
+    networkBandwidth, err := strconv.Atoi(fields[5])
     if err != nil {
-        log.Fatalf("Failed to convert Network Bandwidth to float64: %v", err)
+        log.Fatalf("Failed to convert Network Bandwidth to integer: %v", err)
     }
 
-    networkUsage, err := strconv.ParseFloat(fields[6], 64)
+    networkUsage, err := strconv.Atoi(fields[6])
     if err != nil {
-        log.Fatalf("Failed to convert Network Usage to float64: %v", err)
+        log.Fatalf("Failed to convert Network Usage to integer: %v", err)
     }
 
     return loadAvg, memoryTotal, memoryUsed, diskTotal, diskUsed, networkBandwidth, networkUsage
@@ -125,35 +122,35 @@ func checkLoadAverage(loadAvg int) {
     }
 }
 
-func checkMemoryUsage(memoryTotal, memoryUsed int64) {
+func checkMemoryUsage(memoryTotal, memoryUsed int) {
     if memoryTotal == 0 {
         log.Fatalf("Memory Total cannot be zero")
     }
 
     usagePercent := int(math.Round(float64(memoryUsed) / float64(memoryTotal) * 100))
-    if usagePercent > memoryUsageThreshold {
+    if usagePercent > memoryTotal * memoryUsageThreshold {
         fmt.Printf("Memory usage too high: %d%%\n", usagePercent)
     }
 }
 
-func checkFreeDiskSpace(diskTotal, diskUsed int64) {
-    freeSpace := int64((diskTotal - diskUsed) >> 20) // Переводим байты в мегабайты
-    if freeSpace < freeDiskSpaceThreshold {
-        fmt.Printf("Free disk space is too low: %d MB left\n", freeSpace)
+func checkFreeDiskSpace(diskTotal, diskUsed int) {
+    freeSpace := int(math.Round(float64(diskTotal-diskUsed) / 1024 / 1024))
+    if freeSpace < diskTotal * freeDiskSpaceThreshold {
+        fmt.Printf("Free disk space is too low: %d Mb left\n", freeSpace)
     }
 }
 
 // Обновленная функция для перевода значений в мегабиты
-func checkNetworkBandwidth(bandwidth, usage float64) {
+func checkNetworkBandwidth(bandwidth, usage int) {
     if bandwidth == 0 {
         log.Fatalf("Network Bandwidth cannot be zero")
     }
 
-    bandwidthMbps := bandwidth / 1e6 // Переводим байты в мегабиты
-    usageMbps := usage / 1e6       // Переводим байты в мегабиты
+    bandwidthMbps := bandwidth / 125000 // Переводим из байт в мегабиты
+    usageMbps := usage / 125000         // Переводим из байт в мегабиты
 
-    usagePercent := int(math.Round(usageMbps / bandwidthMbps * 100))
-    if usagePercent > networkBandwidthThresh {
-        fmt.Printf("Network bandwidth usage high: %.2f Mbit/s available\n", bandwidthMbps)
+    usagePercent := int(math.Round(float64(usageMbps) / float64(bandwidthMbps) * 100))
+    if usagePercent > bandwidthMbps * networkBandwidthThresh {
+        fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", bandwidthMbps)
     }
 }
