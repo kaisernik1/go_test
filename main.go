@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"time"
 )
 
 type Stats struct {
@@ -14,38 +17,39 @@ type Stats struct {
 }
 
 func main() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	url := "http://srv.msk01.gigacorp.local/_stats"
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		fmt.Printf("Error creating request: %v\n", err)
-		return
+		log.Fatalf("Error creating request: %v\n", err)
 	}
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("Error sending request: %v\n", err)
-		return
+		log.Fatalf("Error sending request: %v\n", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Error reading body: %v\n", err)
-		return
+		log.Fatalf("Error reading body: %v\n", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("Error: Status code is %d\n", resp.StatusCode)
-		return
+		log.Fatalf("Error: Status code is %d\n", resp.StatusCode)
 	}
 
 	var stats Stats
 	err = json.Unmarshal(body, &stats)
 	if err != nil {
-		fmt.Printf("Error unmarshaling JSON: %v\n", err)
-		return
+		log.Fatalf("Error unmarshaling JSON: %v\n", err)
 	}
 
 	fmt.Printf("CPU Usage: %.2f%%\n", stats.CpuUsage)
