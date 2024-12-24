@@ -11,7 +11,7 @@ import (
 )
 
 type Stats struct {
-	CpuUsage    float64 `json:"cpu_usage"`
+	CPUUsage    float64 `json:"cpu_usage"`
 	MemoryUsage float64 `json:"memory_usage"`
 	DiskUsage   float64 `json:"disk_usage"`
 }
@@ -52,7 +52,7 @@ func main() {
 		log.Fatalf("Error unmarshaling JSON: %v\n", err)
 	}
 
-	fmt.Printf("CPU Usage: %.2f%%\n", stats.CpuUsage)
+	fmt.Printf("CPU Usage: %.2f%%\n", stats.CPUUsage)
 	fmt.Printf("Memory Usage: %.2f%%\n", stats.MemoryUsage)
 	fmt.Printf("Disk Usage: %.2f%%\n", stats.DiskUsage)
 }
