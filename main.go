@@ -102,23 +102,13 @@ func checkMemoryUsage(memoryTotal, memoryUsed int64) {
     if usagePercent > memoryUsageThreshold {
         fmt.Printf("Memory usage too high: %d%%\n", usagePercent)
     }
-
-    // Преобразуем байты в мегабайты
-    memoryTotalMB := int(math.Round(float64(memoryTotal) / 1024 / 1024))
-    memoryUsedMB := int(math.Round(float64(memoryUsed) / 1024 / 1024))
-    fmt.Printf("Memory Total: %d MB, Used: %d MB\n", memoryTotalMB, memoryUsedMB)
 }
 
 func checkFreeDiskSpace(diskTotal, diskUsed int64) {
     freeSpace := int(math.Round(float64(diskTotal-diskUsed) / 1024 / 1024))
     if freeSpace < freeDiskSpaceThreshold {
-        fmt.Printf("Free disk space is too low: %d MB left\n", freeSpace)
+        fmt.Printf("Free disk space is too low: %d Mb left\n", freeSpace)
     }
-
-    // Преобразуем байты в мегабайты
-    diskTotalMB := int(math.Round(float64(diskTotal) / 1024 / 1024))
-    diskUsedMB := int(math.Round(float64(diskUsed) / 1024 / 1024))
-    fmt.Printf("Disk Total: %d MB, Used: %d MB\n", diskTotalMB, diskUsedMB)
 }
 
 func checkNetworkBandwidth(bandwidth, usage int) {
@@ -126,9 +116,4 @@ func checkNetworkBandwidth(bandwidth, usage int) {
     if usagePercent > networkBandwidthThresh {
         fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", bandwidth/8)
     }
-
-    // Преобразуем байты в мегабиты
-    bandwidthMbps := bandwidth / 8
-    usageMbps := usage / 8
-    fmt.Printf("Network Bandwidth: %d Mbit/s, Usage: %d Mbit/s\n", bandwidthMbps, usageMbps)
 }
