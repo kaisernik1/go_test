@@ -19,7 +19,7 @@ const (
     freeDiskSpaceThreshold = 10
     networkBandwidthThresh = 90
     maxErrors              = 3
-    pollInterval           = time.Second * 10
+    pollInterval           = time.Second * 5
     serverURL              = "http://srv.msk01.gigacorp.local/_stats"
 )
 
@@ -98,7 +98,7 @@ func checkLoadAverage(loadAvg int) {
 }
 
 func checkMemoryUsage(memoryTotal, memoryUsed int64) {
-    usagePercent := int(math.Round(float64(memoryUsed) / float64(memoryTotal) * 100))
+    usagePercent := int(math.Round(float64(memoryUsed)/float64(memoryTotal) * 100))
     if usagePercent > memoryUsageThreshold {
         fmt.Printf("Memory usage too high: %d%%\n", usagePercent)
     }
@@ -111,9 +111,13 @@ func checkFreeDiskSpace(diskTotal, diskUsed int64) {
     }
 }
 
+// Обновленная функция для перевода значений в мегабиты
 func checkNetworkBandwidth(bandwidth, usage int) {
-    usagePercent := int(math.Round(float64(usage) / float64(bandwidth) * 100))
+    bandwidthMbps := bandwidth / 125000 // Переводим из байт в мегабиты
+    usageMbps := usage / 125000         // Переводим из байт в мегабиты
+
+    usagePercent := int(math.Round(float64(usageMbps) / float64(bandwidthMbps) * 100))
     if usagePercent > networkBandwidthThresh {
-        fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", bandwidth/8)
+        fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", bandwidthMbps)
     }
 }
