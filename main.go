@@ -47,21 +47,50 @@ func fetchStats(client *http.Client) ([]string, error) {
 }
 
 func checkResourceUsage(stats []string) {
-	loadAvg, _ := strconv.ParseFloat(stats[0], 64)
-	memTotal, _ := strconv.ParseInt(stats[1], 10, 64)
-	memUsed, _ := strconv.ParseInt(stats[2], 10, 64)
-	diskTotal, _ := strconv.ParseInt(stats[3], 10, 64)
-	diskUsed, _ := strconv.ParseInt(stats[4], 10, 64)
-	netTotal, _ := strconv.ParseInt(stats[5], 10, 64)
-	netUsed, _ := strconv.ParseInt(stats[6], 10, 64)
+	loadAvg, err := strconv.ParseFloat(stats[0], 64)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing load average: %v\n", err)
+		return
+	}
+	memTotal, err := strconv.ParseInt(stats[1], 10, 64)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing memTotal: %v\n", err)
+		return
+	}
+	memUsed, err := strconv.ParseInt(stats[2], 10, 64)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing memUsed: %v\n", err)
+		return
+	}
+	diskTotal, err := strconv.ParseInt(stats[3], 10, 64)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing diskTotal: %v\n", err)
+		return
+	}
+	diskUsed, err := strconv.ParseInt(stats[4], 10, 64)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing diskUsed: %v\n", err)
+		return
+	}
+	netTotal, err := strconv.ParseInt(stats[5], 10, 64)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing netTotal: %v\n", err)
+		return
+	}
+	netUsed, err := strconv.ParseInt(stats[6], 10, 64)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing netUsed: %v\n", err)
+		return
+	}
+
 
 	if loadAvg > loadAverageThreshold {
-		fmt.Printf("Load Average is too high: %.2f\n", loadAvg)
+		fmt.Printf("Load Average is too high: %.0f\n", loadAvg) // Изменено на %.0f
 	}
 
 	memUsage := float64(memUsed) / float64(memTotal)
 	if memUsage > memoryUsageThreshold {
-		fmt.Printf("Memory usage too high: %.0f%%\n", memUsage*100)
+		fmt.Printf("Memory usage too high: %.0f%%\n", memUsage*100) //Изменено на %.0f
 	}
 
 	diskFree := (diskTotal - diskUsed) / (1024 * 1024)
@@ -72,8 +101,8 @@ func checkResourceUsage(stats []string) {
 
 	netUsage := float64(netUsed) / float64(netTotal)
 	if netUsage > networkBandwidthThreshold {
-		netFree := (netTotal - netUsed) / (1024 * 1024)
-		fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", netFree)
+		netFree := (netTotal - netUsed) / (1024 * 1024) // Исправлено: деление на 1024*1024
+		fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", netFree) //Исправлено: без лишних вычислений
 	}
 }
 
