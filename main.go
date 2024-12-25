@@ -83,14 +83,13 @@ func checkResourceUsage(stats []string) {
 		return
 	}
 
-
 	if loadAvg > loadAverageThreshold {
-		fmt.Printf("Load Average is too high: %.0f\n", loadAvg) // Изменено на %.0f
+		fmt.Printf("Load Average is too high: %.0f\n", loadAvg)
 	}
 
 	memUsage := float64(memUsed) / float64(memTotal)
 	if memUsage > memoryUsageThreshold {
-		fmt.Printf("Memory usage too high: %.0f%%\n", memUsage*100) //Изменено на %.0f
+		fmt.Printf("Memory usage too high: %.0f%%\n", memUsage*100)
 	}
 
 	diskFree := (diskTotal - diskUsed) / (1024 * 1024)
@@ -101,10 +100,11 @@ func checkResourceUsage(stats []string) {
 
 	netUsage := float64(netUsed) / float64(netTotal)
 	if netUsage > networkBandwidthThreshold {
-		netFree := (netTotal - netUsed) / (1024 * 1024) // Исправлено: деление на 1024*1024
-		fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", netFree) //Исправлено: без лишних вычислений
+		netFree := (netTotal - netUsed) / (1024 * 1024)
+		fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", netFree) 
 	}
 }
+
 
 func main() {
 	client := &http.Client{}
