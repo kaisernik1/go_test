@@ -1,156 +1,163 @@
 package main
+
 import (
-    "bytes"
-    "encoding/csv"
+    "context"
     "fmt"
     "io"
     "log"
-    "math"
     "net/http"
     "strconv"
     "strings"
+    "sync"
     "time"
 )
+
 const (
-    loadAverageThreshold   = 30
-    memoryUsageThreshold   = 80
-    freeDiskSpaceThreshold = 10
-    networkBandwidthThresh = 90
-    maxErrors              = 3
-    pollInterval           = time.Second * 5
-    serverURL              = "http://srv.msk01.gigacorp.local/_stats"
+    serverURL      = "http://srv.msk01.gigacorp.local/_stats"
+    maxErrorsCount = 3 // Максимальное количество ошибок перед выдачей сообщения о невозможности сбора статистики
+    pollInterval   = 60 * time.Second // Интервал опроса сервера (в секундах)
 )
+
+type ResourceStats struct {
+    LoadAverage        int     `json:"load_average"`
+    TotalMemory        float64 `json:"total_memory"`
+    UsedMemory         float64 `json:"used_memory"`
+    TotalDisk          float64 `json:"total_disk"`
+    UsedDisk           float64 `json:"used_disk"`
+    NetworkBandwidth   float64 `json:"network_bandwidth"`
+    CurrentNetworkRate float64 `json:"current_network_rate"`
+}
+
 func main() {
-    errorCount := 0
-    for {
-        stats, err := getServerStats()
-        if err != nil {
-            log.Println("Error fetching stats:", err)
-            errorCount++
-            if errorCount >= maxErrors {
-                fmt.Println("Unable to fetch server statistics.")
-                return
+    var wg sync.WaitGroup
+    wg.Add(1)
+    go func() {
+        defer wg.Done()
+        for {
+            errsCount := 0
+            for errsCount < maxErrorsCount {
+                stats, err := getResourceStats(serverURL)
+                if err != nil {
+                    log.Printf("Unable to fetch server statistics: %v", err)
+                    errsCount++
+                    continue
+                }
+
+                printWarnings(*stats)
+                time.Sleep(pollInterval)
             }
-            time.Sleep(pollInterval)
-            continue
+
+            if errsCount >= maxErrorsCount {
+                fmt.Fprintln(io.Discard, "Unable to fetch server statistics.")
+            }
         }
-        errorCount = 0
+    }()
 
-        loadAvg, memoryTotal, memoryUsed, diskTotal, diskUsed, networkBandwidth, networkUsage := parseStats(stats)
+    wg.Wait()
+}
 
-        checkLoadAverage(loadAvg)
-        checkMemoryUsage(memoryTotal, memoryUsed)
-        checkFreeDiskSpace(diskTotal, diskUsed)
-        checkNetworkBandwidth(networkBandwidth, networkUsage)
+func printWarnings(stats ResourceStats) {
+    if stats.LoadAverage > 30 {
+        fmt.Printf("Load Average is too high: %d\n", stats.LoadAverage)
+    }
 
-        time.Sleep(pollInterval)
+    memUsagePercent := int(stats.UsedMemory / stats.TotalMemory * 100)
+    if memUsagePercent > 80 {
+        fmt.Printf("Memory usage too high: %d%%\n", memUsagePercent)
+    }
+
+    diskFreeMb := int((stats.TotalDisk - stats.UsedDisk) / 1024 / 1024)
+    if diskFreeMb < 10 {
+        fmt.Printf("Free disk space is too low: %d Mb left\n", diskFreeMb)
+    }
+
+    netAvailMbs := int((stats.NetworkBandwidth - stats.CurrentNetworkRate) / 125000)
+    if netAvailMbs < int(0.1*stats.NetworkBandwidth/125000) {
+        fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", netAvailMbs)
     }
 }
 
-func getServerStats() ([]byte, error) {
-    resp, err := http.Get(serverURL)
+func getResourceStats(url string) (*ResourceStats, error) {
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+
+    req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
     if err != nil {
-        return nil, fmt.Errorf("failed to make HTTP request: %w", err)
+        return nil, fmt.Errorf("unable to create request: %w", err)
+    }
+
+    req.Host = "srv.msk01.gigacorp.local"
+
+    client := &http.Client{
+        Timeout: 15 * time.Second,
+    }
+
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("unable to perform request: %w", err)
     }
     defer resp.Body.Close()
-
-    body, err := io.ReadAll(resp.Body)
-    if err != nil {
-        return nil, fmt.Errorf("failed to read response body: %w", err)
-    }
 
     if resp.StatusCode != http.StatusOK {
         return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
     }
 
-    return body, nil
+    body, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return nil, fmt.Errorf("unable to read response body: %w", err)
+    }
+
+    stats, err := parseResponseBody(body)
+    if err != nil {
+        return nil, fmt.Errorf("unable to parse response body: %w", err)
+    }
+
+    return stats, nil
 }
 
-func parseStats(data []byte) (int, int, int, int, int, int, int) {
-    reader := csv.NewReader(bytes.NewReader(data))
-    fields, err := reader.Read()
+func parseResponseBody(body []byte) (*ResourceStats, error) {
+    values := strings.Split(string(body), ",")
+    if len(values) != 7 {
+        return nil, fmt.Errorf("incorrect number of values in response")
+    }
+
+    stats := &ResourceStats{}
+
+    var err error
+    stats.LoadAverage, err = strconv.Atoi(values[0])
     if err != nil {
-        log.Fatalf("Failed to parse CSV data: %v", err)
+        return nil, fmt.Errorf("unable to parse load average: %w", err)
     }
 
-    if len(fields) != 7 {
-        log.Fatalf("Invalid number of fields in CSV file: expected 7, got %d", len(fields))
-    }
-
-    loadAvgStr := strings.Trim(fields[0], ",")
-    loadAvg, err := strconv.Atoi(loadAvgStr)
+    stats.TotalMemory, err = strconv.ParseFloat(values[1], 64)
     if err != nil {
-        log.Fatalf("Failed to convert Load Average to integer: %v", err)
+        return nil, fmt.Errorf("unable to parse total memory: %w", err)
     }
 
-    memoryTotal, err := strconv.Atoi(fields[1])
+    stats.UsedMemory, err = strconv.ParseFloat(values[2], 64)
     if err != nil {
-        log.Fatalf("Failed to convert Memory Total to integer: %v", err)
+        return nil, fmt.Errorf("unable to parse used memory: %w", err)
     }
 
-    memoryUsed, err := strconv.Atoi(fields[2])
+    stats.TotalDisk, err = strconv.ParseFloat(values[3], 64)
     if err != nil {
-        log.Fatalf("Failed to convert Memory Used to integer: %v", err)
+        return nil, fmt.Errorf("unable to parse total disk: %w", err)
     }
 
-    diskTotal, err := strconv.Atoi(fields[3])
+    stats.UsedDisk, err = strconv.ParseFloat(values[4], 64)
     if err != nil {
-        log.Fatalf("Failed to convert Disk Total to integer: %v", err)
+        return nil, fmt.Errorf("unable to parse used disk: %w", err)
     }
 
-    diskUsed, err := strconv.Atoi(fields[4])
+    stats.NetworkBandwidth, err = strconv.ParseFloat(values[5], 64)
     if err != nil {
-        log.Fatalf("Failed to convert Disk Used to integer: %v", err)
+        return nil, fmt.Errorf("unable to parse network bandwidth: %w", err)
     }
 
-    networkBandwidth, err := strconv.Atoi(fields[5])
+    stats.CurrentNetworkRate, err = strconv.ParseFloat(values[6], 64)
     if err != nil {
-        log.Fatalf("Failed to convert Network Bandwidth to integer: %v", err)
+        return nil, fmt.Errorf("unable to parse current network rate: %w", err)
     }
 
-    networkUsage, err := strconv.Atoi(fields[6])
-    if err != nil {
-        log.Fatalf("Failed to convert Network Usage to integer: %v", err)
-    }
-
-    return loadAvg, memoryTotal, memoryUsed, diskTotal, diskUsed, networkBandwidth, networkUsage
-}
-
-func checkLoadAverage(loadAvg int) {
-    if loadAvg > loadAverageThreshold {
-        fmt.Printf("Load Average is too high: %d\n", loadAvg)
-    }
-}
-
-func checkMemoryUsage(memoryTotal, memoryUsed int) {
-    if memoryTotal == 0 {
-        log.Fatalf("Memory Total cannot be zero")
-    }
-
-    usagePercent := int(math.Round(float64(memoryUsed) / float64(memoryTotal) * 100))
-    if usagePercent > memoryTotal * memoryUsageThreshold {
-        fmt.Printf("Memory usage too high: %d%%\n", usagePercent)
-    }
-}
-
-func checkFreeDiskSpace(diskTotal, diskUsed int) {
-    freeSpace := int(math.Round(float64(diskTotal-diskUsed) / 1024 / 1024))
-    if freeSpace < diskTotal * freeDiskSpaceThreshold {
-        fmt.Printf("Free disk space is too low: %d Mb left\n", freeSpace)
-    }
-}
-
-// Обновленная функция для перевода значений в мегабиты
-func checkNetworkBandwidth(bandwidth, usage int) {
-    if bandwidth == 0 {
-        log.Fatalf("Network Bandwidth cannot be zero")
-    }
-
-    bandwidthMbps := bandwidth / 125000 // Переводим из байт в мегабиты
-    usageMbps := usage / 125000         // Переводим из байт в мегабиты
-
-    usagePercent := int(math.Round(float64(usageMbps) / float64(bandwidthMbps) * 100))
-    if usagePercent > bandwidthMbps * networkBandwidthThresh {
-        fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", bandwidthMbps)
-    }
+    return stats, nil
 }
