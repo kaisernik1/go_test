@@ -99,9 +99,9 @@ func checkResourceUsage(stats []string) {
 		fmt.Printf("Free disk space is too low: %d Mb left\n", diskFree)
 	}
 
+	netFree := (netTotal - netUsed) / (1024 * 1024)
 	netUsage := float64(netUsed) / float64(netTotal)
 	if netUsage >= networkBandwidthThreshold { 
-		netFree := (netTotal - netUsed) / (1024 * 1024)
 		fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", netFree)
 	}
 }
