@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"math"
 )
 
 
@@ -90,7 +89,9 @@ func checkResourceUsage(stats []string) {
 
     memUsage := float64(memUsed) / float64(memTotal)
 	if memUsage >= memoryUsageThreshold { 
-		fmt.Printf("Memory usage too high: %.0f%%\n", math.Round(memUsage*100)) 
+		roundedMemUsage := int(memUsage * 100 + 0.5)
+    
+		fmt.Printf("Memory usage too high: %d%%\n", roundedMemUsage)
 	}
 
 	diskFree := (diskTotal - diskUsed) / (1024 * 1024)
