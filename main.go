@@ -1,5 +1,6 @@
 package main
 
+
 import (
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 )
+
 
 const (
 	serverAddress = "srv.msk01.gigacorp.local"
