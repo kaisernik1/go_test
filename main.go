@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"math"
 )
 
 
@@ -87,21 +88,21 @@ func checkResourceUsage(stats []string) {
 		fmt.Printf("Load Average is too high: %.0f\n", loadAvg)
 	}
 
-	memUsage := float64(memUsed) / float64(memTotal)
-	if memUsage > memoryUsageThreshold {
-		fmt.Printf("Memory usage too high: %.0f%%\n", memUsage*100)
+    memUsage := float64(memUsed) / float64(memTotal)
+	if memUsage >= memoryUsageThreshold { 
+		fmt.Printf("Memory usage too high: %.0f%%\n", math.Round(memUsage*100)) 
 	}
 
 	diskFree := (diskTotal - diskUsed) / (1024 * 1024)
 	diskUsage := float64(diskUsed) / float64(diskTotal)
-	if diskUsage > diskUsageThreshold {
+	if diskUsage >= diskUsageThreshold { 
 		fmt.Printf("Free disk space is too low: %d Mb left\n", diskFree)
 	}
 
 	netUsage := float64(netUsed) / float64(netTotal)
-	if netUsage > networkBandwidthThreshold {
-		netFree := (netTotal - netUsed) / (1024 * 1024)
-		fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", netFree) 
+	if netUsage >= networkBandwidthThreshold { 
+		netFree := (netTotal - netUsed) / (1024 * 1024) 
+		fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", netFree)
 	}
 }
 
