@@ -89,7 +89,7 @@ func checkResourceUsage(stats []string) {
 
     memUsage := float64(memUsed) / float64(memTotal)
 	if memUsage >= memoryUsageThreshold { 
-		roundedMemUsage := int(memUsage * 100 + 0.5)
+		roundedMemUsage := int(memUsage * 100)
     
 		fmt.Printf("Memory usage too high: %d%%\n", roundedMemUsage)
 	}
@@ -103,6 +103,7 @@ func checkResourceUsage(stats []string) {
 	netFree := ((netTotal / (1000 * 1000)) - (netUsed / (1000 * 1000)))
 	netUsage := float64(netUsed) / float64(netTotal)
 	if netUsage >= networkBandwidthThreshold { 
+		
 		fmt.Printf("Network bandwidth usage high: %d Mbit/s available\n", netFree)
 	}
 }
